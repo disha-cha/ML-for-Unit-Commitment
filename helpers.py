@@ -6,251 +6,310 @@ import pandapower as pp
 import networkx as nx
 import numpy as np
 
+
 def parsecase(net, num_solar=0, num_wind=0, num_batt=0, num_hydro=0, num_therm=0, time_periods=24, num_scenarios=1,
-              num_nodes=0, num_lines=0, num_uncert=1, num_demands=0):
+             num_nodes=0, num_lines=0, num_uncert=1, num_demands=0):
     """
-    Parses the pandapower network and prepares the parameters for the optimization model.
+    Parses a pandapower network and generates parameter dictionaries required for the optimization model.
+
+    Parameters:
+        net (pandapower.Network): The pandapower network object to parse.
+        num_solar (int): Number of solar generators to include.
+        num_wind (int): Number of wind generators to include.
+        num_batt (int): Number of battery storage units to include.
+        num_hydro (int): Number of hydro generators to include.
+        num_therm (int): Number of thermal generators to include.
+        time_periods (int): Number of time periods (default is 24).
+        num_scenarios (int): Number of scenarios for uncertainty (default is 1).
+        num_nodes (int): Number of network nodes.
+        num_lines (int): Number of transmission lines.
+        num_uncert (int): Number of uncertainty realizations (default is 1).
+        num_demands (int): Number of demand points.
+
+    Returns:
+        bytes: Serialized parameter data for the optimization model.
     """
     p = {}
 
-    # Initialize generator ID offset
+    # Initialize generator ID offset for sequential indexing
     gen_offset = 1
 
-    # Thermal Generators
+    # Extract and index Thermal Generators
     thermal_gens = net.gen[net.gen.type == "Thermal"]
     Gtherm = list(range(gen_offset, gen_offset + len(thermal_gens)))
     gen_offset += len(Gtherm)
 
-    # Hydro Generators
+    # Extract and index Hydro Generators
     hydro_gens = net.gen[net.gen.type == "Hydro"]
     Ghydro = list(range(gen_offset, gen_offset + len(hydro_gens)))
     gen_offset += len(Ghydro)
 
-    # Solar Generators
+    # Extract and index Solar Generators (PV)
     solar_sgens = net.sgen[net.sgen.type == "PV"]
     Gsolar = list(range(gen_offset, gen_offset + len(solar_sgens)))
     gen_offset += len(Gsolar)
 
-    # Wind Generators
+    # Extract and index Wind Generators (WP)
     wind_sgens = net.sgen[net.sgen.type == "WP"]
     Gwind = list(range(gen_offset, gen_offset + len(wind_sgens)))
     gen_offset += len(Gwind)
 
-    # Battery Storage Units
+    # Extract and index Battery Storage Units (BT)
     battery_storage = net.storage[net.storage.type == "BT"]
     Gbatt = list(range(gen_offset, gen_offset + len(battery_storage)))
 
-    # Renewable Generators (Solar + Wind)
+    # Combine Renewable Generators (Solar + Wind)
     Grenew = Gsolar + Gwind
 
-    # All Generators
+    # Combine All Generators
     G = Gtherm + Ghydro + Gsolar + Gwind + Gbatt
 
-    T = range(1, time_periods + 1)
-    S = range(1, num_scenarios + 1)
-    N = range(1, num_nodes + 1)
-    L = range(1, num_lines + 1)
-    O = range(1, num_uncert + 1)
-    D = range(1, num_demands + 1)
+    # Define Sets for Time, Scenarios, Nodes, Lines, Uncertainties, and Demands
+    T = range(1, time_periods + 1)                     # Time periods
+    S = range(1, num_scenarios + 1)                    # Scenarios
+    N = range(1, num_nodes + 1)                        # Network nodes
+    L = range(1, num_lines + 1)                        # Transmission lines
+    O = range(1, num_uncert + 1)                       # Uncertainty realizations
+    D = range(1, num_demands + 1)                      # Demand points
 
-    # Assign generator types to thermal generators
-    therm_types = ['coal', 'ccgt']
+    # Assign Generator Types to Thermal Generators
+    therm_types = ['coal', 'ccgt']                      # Possible types for thermal generators
     gen_types = {g: random.choice(therm_types) for g in Gtherm}
 
-    # Fixed costs
+    # Define Fixed Capital Expenditure (CapEx) for Each Generator
     p["CapEx"] = {
-        g: random_range(902.5, 997.5) if g in Gsolar else  # Solar PV: $950 ±5% per kW
-        random_range(1425, 1575) if g in Gwind else        # Onshore Wind: $1500 ±5% per kW
-        random_range(3800, 4200) if g in Ghydro else       # Hydro: $4000 ±5% per kW
-        random_range(1235, 1365) if g in Gbatt else        # Battery Storage: $1300 ±5% per kW
-        random_range(3800, 4200) if gen_types[g] == 'coal' else  # Coal: $4000 ±5% per kW
-        random_range(950, 1050)  # For 'ccgt', CCGT: $1000 ±5% per kW
+        g: random_range(902.5, 997.5) if g in Gsolar else              # Solar PV: $950 ±5% per kW
+        random_range(1425, 1575) if g in Gwind else                    # Onshore Wind: $1500 ±5% per kW
+        random_range(3800, 4200) if g in Ghydro else                   # Hydro: $4000 ±5% per kW
+        random_range(1235, 1365) if g in Gbatt else                    # Battery Storage: $1300 ±5% per kW
+        random_range(3800, 4200) if gen_types[g] == 'coal' else         # Coal: $4000 ±5% per kW
+        random_range(950, 1050)                                         # CCGT: $1000 ±5% per kW
         for g in G
     }
 
-    # Variable costs
+    # Define Variable Operational Expenditure (OpEx) for Each Generator
     p["OpEx"] = {
-        g: random_range(0, 1.05) if g in Gsolar else         # Solar PV: $0-$1 per MWh
-        random_range(0, 1.05) if g in Gwind else             # Wind: $0-$1 per MWh
-        random_range(1.9, 2.1) if g in Ghydro else           # Hydro: $2 ±5% per MWh
-        random_range(7.6, 8.4) if g in Gbatt else            # Battery: $8 ±5% per MWh
-        random_range(38, 42) if gen_types[g] == 'coal' else  # Coal: $40 ±5% per MWh
-        random_range(28.5, 31.5)  # For 'ccgt', CCGT: $30 ±5% per MWh
+        g: random_range(0, 1.05) if g in Gsolar else                     # Solar PV: $0-$1 per MWh
+        random_range(0, 1.05) if g in Gwind else                         # Wind: $0-$1 per MWh
+        random_range(1.9, 2.1) if g in Ghydro else                       # Hydro: $2 ±5% per MWh
+        random_range(7.6, 8.4) if g in Gbatt else                        # Battery: $8 ±5% per MWh
+        random_range(38, 42) if gen_types[g] == 'coal' else              # Coal: $40 ±5% per MWh
+        random_range(28.5, 31.5)                                         # CCGT: $30 ±5% per MWh
         for g in G
     }
 
-    # Start-up costs
+    # Define Start-Up Costs (CSU) for Each Generator
     p["CSU"] = {
         g: 0 if g in Grenew or g in Gbatt else
         random_range(1.9, 2.1) if g in Ghydro else                       # Hydro: $2 ±5% per MW per Start
         random_range(95, 105) if gen_types[g] == 'coal' else             # Coal: $100 ±5% per MW per Start
-        random_range(47.5, 52.5)  # For 'ccgt', CCGT: $50 ±5% per MW per Start
+        random_range(47.5, 52.5)                                        # CCGT: $50 ±5% per MW per Start
         for g in G
     }
 
-    # Shut-down costs
+    # Define Shut-Down Costs (CSD) for Each Generator
     p["CSD"] = {
         g: 0 if g in Grenew or g in Gbatt else
         random_range(0.95, 1.05) if g in Ghydro else                     # Hydro: $1 ±5% per MW per Stop
         random_range(23.75, 26.25) if gen_types[g] == 'coal' else        # Coal: $25 ±5% per MW per Stop
-        random_range(9.5, 10.5)  # For 'ccgt', CCGT: $10 ±5% per MW per Stop
+        random_range(9.5, 10.5)                                         # CCGT: $10 ±5% per MW per Stop
         for g in G
     }
 
-    # Scenario probabilities
+    # Define Scenario Probabilities (Assuming Equal Probability for Each Scenario)
     p["Pi"] = {s: 1 / len(S) for s in S}
 
-    # Generator limits
+    # Define Power Output Limits (Pmax and Pmin) for Each Generator
     p["Pmax"] = {}
     p["Pmin"] = {}
     for g in G:
         if g in Gsolar or g in Gwind:
-            sgen_idx = g - len(Gtherm) - len(Ghydro)  # Adjusted index for sgen
-            p["Pmax"][g] = solar_sgens.at[sgen_idx - 1, 'max_p_mw'] if g in Gsolar else wind_sgens.at[
-                sgen_idx - 1, 'max_p_mw']
-            p["Pmin"][g] = solar_sgens.at[sgen_idx - 1, 'min_p_mw'] if g in Gsolar else wind_sgens.at[
-                sgen_idx - 1, 'min_p_mw']
+            # Indexing for sgen (solar or wind)
+            sgen_idx = g - len(Gtherm) - len(Ghydro)
+            if g in Gsolar:
+                p["Pmax"][g] = solar_sgens.at[sgen_idx - 1, 'max_p_mw']
+                p["Pmin"][g] = solar_sgens.at[sgen_idx - 1, 'min_p_mw']
+            else:
+                p["Pmax"][g] = wind_sgens.at[sgen_idx - 1, 'max_p_mw']
+                p["Pmin"][g] = wind_sgens.at[sgen_idx - 1, 'min_p_mw']
         elif g in Gbatt:
-            storage_idx = g - len(Gtherm) - len(Ghydro) - len(Gsolar) - len(Gwind) - 1  # Adjusted index for storage
+            # Indexing for battery storage
+            storage_idx = g - len(Gtherm) - len(Ghydro) - len(Gsolar) - len(Gwind) - 1
             p["Pmax"][g] = battery_storage.at[storage_idx, 'max_p_mw']
             p["Pmin"][g] = battery_storage.at[storage_idx, 'min_p_mw']
         elif g in Ghydro or g in Gtherm:
-            gen_idx = g - 1  # Adjusted for 1-based indexing
+            # Indexing for hydro or thermal generators
+            gen_idx = g - 1  # 1-based indexing
             p["Pmax"][g] = net.gen.at[gen_idx, 'max_p_mw']
             p["Pmin"][g] = net.gen.at[gen_idx, 'min_p_mw']
 
-    # Ramp up and down rates
+    # Define Ramp-Up (RU) and Ramp-Down (RD) Rates for Each Generator
     p["RU"] = {
         g: p["Pmax"][g] if g in Gbatt else
         p["Pmax"][g] if g in Grenew else
         p["Pmax"][g] if g in Ghydro else
-        p["Pmax"][g] * 1.0 if gen_types[g] == 'coal' else   # Coal: 100% per hour
-        p["Pmax"][g] * 2.85  # For 'ccgt', CCGT: 285% per hour
+        p["Pmax"][g] * 1.0 if gen_types[g] == 'coal' else              # Coal: 100% per hour
+        p["Pmax"][g] * 2.85                                         # CCGT: 285% per hour
         for g in G
     }
-    p["RD"] = p["RU"].copy()
+    p["RD"] = p["RU"].copy()  # Ramp-Down rates are identical to Ramp-Up rates
 
-    # Battery parameters
+    # Define Battery Parameters if Battery Storage Units Exist
     if len(Gbatt) > 0:
-        p["Pchg"] = {g: p["Pmax"][g] for g in Gbatt}  # Max charge rate equals Pmax
-        p["Pdchg"] = {g: p["Pmax"][g] for g in Gbatt}  # Max discharge rate equals Pmax
-        p["Hchg"] = {g: random_range(0.925, 1.025) for g in Gbatt}     # Charge efficiency 97.5% ±5%
-        p["Hdchg"] = {g: random_range(0.925, 1.025) for g in Gbatt}    # Discharge efficiency 97.5% ±5%
-        p["SoCmin"] = {g: random_range(0.095, 0.105) for g in Gbatt}   # Minimum SoC 10% ±5%
-        p["SoCmax"] = {g: random_range(0.855, 0.945) for g in Gbatt}   # Maximum SoC 90% ±5%
-        p["Ecap"] = {g: p["Pmax"][g] * 4 for g in Gbatt}  # Assuming 4-hour duration
-        p["DODmax"] = {g: random_range(0.76, 0.84) for g in Gbatt}     # DODmax 80% ±5%
+        p["Pchg"] = {g: p["Pmax"][g] for g in Gbatt}                    # Maximum charging power equals Pmax
+        p["Pdchg"] = {g: p["Pmax"][g] for g in Gbatt}                   # Maximum discharging power equals Pmax
+        p["Hchg"] = {g: random_range(0.95, 1.0) for g in Gbatt}        # Charging efficiency: 97.5% ±5%
+        p["Hdchg"] = {g: random_range(0.95, 1.0) for g in Gbatt}       # Discharging efficiency: 97.5% ±5%
+        p["SoCmin"] = {g: random_range(0.095, 0.105) for g in Gbatt}  # Minimum SoC: 10% ±5%
+        p["SoCmax"] = {g: random_range(0.855, 0.945) for g in Gbatt}  # Maximum SoC: 90% ±5%
+        p["Ecap"] = {g: p["Pmax"][g] * 4 for g in Gbatt}              # Energy capacity: 4-hour duration
+        p["DODmax"] = {g: random_range(0.76, 0.84) for g in Gbatt}    # Depth of Discharge Max: 80% ±5%
 
-    # Solar and wind parameters
+    # Define Solar and Wind Parameters if Renewable Generators Exist
     if len(Grenew) > 0:
+        # Solar Capacity Factor (CF)
         p["Xs"] = {
             (o, t): random_range(0.1425, 0.1575)  # Solar CF: 15% ±5%
             for o in O
             for t in T
         }
+        # Maximum Available Solar Power based on Capacity Factor
         p["PXsmax"] = {
             (g, t, o): p["Xs"][o, t] * p["Pmax"][g]
             for g in Gsolar
             for t in T
             for o in O
         }
-        p["Xw"] = {
-            (t, o): random_range(0.3325, 0.3675)  # Wind CF: 35% ±5%
-            for t in T
-            for o in O
-        }
-        p["Gam"] = {g: 1.0 for g in Gwind}  # Assuming full availability scaled by CF
+        # Wind Distribution Factor (Gam)
+        p["Gam"] = {g: random_range(0.3325, 0.3675) for g in Gwind}  # Wind CF: 35% ±5%
 
-    # Hydro parameters
+    # Define Hydro Parameters if Hydro Generators Exist
     if len(Ghydro) > 0:
-        p["H"] = {g: (9.81 * 1000 * 0.9) / 1e6 for g in Ghydro}
-        p["Smax"] = {g: random_range(276.0, 304.5) for g in Ghydro}
-        p["Hbase"] = {g: 110 for g in Ghydro}
-        p["Emin"] = {g: 180 for g in Ghydro}
-        p["Emax"] = {g: 220 for g in Ghydro}
-        p["Ebase"] = {g: 190 for g in Ghydro}
-        p["A"] = {g: 0.02 for g in Ghydro}
-        p["B"] = {g: 0.009 for g in Ghydro}
-        p["Qmin"] = {g: 15 for g in Ghydro}
-        p["Qmax"] = {g: 200 for g in Ghydro}
-        p["Inflow"] = {(g, t, s): 120 for g in Ghydro for t in T for s in S}
+        # Efficiency Parameters for Hydro Generators
+        p["H"] = {g: (9.81 * 1000 * 0.9) / 1e6 for g in Ghydro}  # Efficiency calculation
+        p["Smax"] = {g: random_range(276.0, 304.5) for g in Ghydro}  # Maximum water spillage
+        p["Hbase"] = {g: 110 for g in Ghydro}                        # Base head
+        p["Emin"] = {g: 180 for g in Ghydro}                         # Minimum reservoir level
+        p["Emax"] = {g: 220 for g in Ghydro}                         # Maximum reservoir level
+        p["Ebase"] = {g: 190 for g in Ghydro}                        # Base reservoir level
+        p["A"] = {g: 0.02 for g in Ghydro}                           # Coefficient for reservoir level calculation
+        p["B"] = {g: 0.009 for g in Ghydro}                          # Coefficient for water discharge impact
+        p["Qmin"] = {g: 15 for g in Ghydro}                          # Minimum water discharge
+        p["Qmax"] = {g: 200 for g in Ghydro}                         # Maximum water discharge
+        p["Inflow"] = {(g, t, s): 120 for g in Ghydro for t in T for s in S}  # Water inflow for hydro generators
 
-        # Initialize Einit and Efinal for Hydro Generators
-        p["Einit"] = {g: random_range(200, 220) for g in Ghydro}  # Initial reservoir levels
-        p["Efinal"] = {g: p["Einit"][g] for g in Ghydro}  # Final reservoir levels
+    # Initialize Initial and Final Reservoir Levels for Hydro Generators
+    p["Einit"] = {g: random_range(200, 220) for g in Ghydro}  # Initial reservoir levels
+    p["Efinal"] = {g: p["Einit"][g] for g in Ghydro}          # Final reservoir levels (can be customized)
 
-    # Demand curve
+    # Define Demand Curve based on Time of Day
+    p["Xdemand"] = {
+        (t, d): random_range(0.8, 1.2) * net.load.at[d - 1, 'p_mw']
+        for t in T
+        for d in D
+    }
+
+    # Calculate Total Load in the Network
     total_load = net.load['p_mw'].sum()
 
     def demand_curve(t):
+        """
+        Generates a demand curve with peak and off-peak factors and sinusoidal variation.
+
+        Parameters:
+            t (int): Time period.
+
+        Returns:
+            float: Calculated demand for time period t.
+        """
         base_load = total_load
-        peak_factor = 1.1  # 10% above average
-        off_peak_factor = 0.9  # 10% below average
+        peak_factor = 1.3
+        off_peak_factor = 0.7
         time_of_day = (t - 1) % 24
-        variation = np.sin(np.pi * time_of_day / 12)  # Variation over the day
+        variation = np.sin(np.pi * time_of_day / 12)
+        return base_load * (peak_factor if 9 <= time_of_day <= 20 else off_peak_factor) * (1 + 0.1 * variation)
 
-        if 6 <= time_of_day <= 18:  # Peak hours
-            return base_load * peak_factor * (1 + 0.05 * variation)
-        else:  # Off-peak hours
-            return base_load * off_peak_factor * (1 + 0.05 * variation)
-
+    # Define Demand at Each Time Period
     p["Dd"] = {t: demand_curve(t) for t in T}
 
-    # Reserve requirement
+    # Define Reserve Requirements based on Demand and Renewable Capacity
     def reserve_requirement(t):
-        base_reserve = 0.05 * p["Dd"][t]  # 5% of demand as base reserve
+        """
+        Calculates the reserve requirement for a given time period.
+
+        Parameters:
+            t (int): Time period.
+
+        Returns:
+            float: Reserve requirement for time period t.
+        """
+        base_reserve = 0.05 * p["Dd"][t]                  # 5% of demand as base reserve
         renewable_capacity = sum(p["Pmax"][g] for g in Grenew)
-        additional_reserve = 0.10 * renewable_capacity  # 10% of renewable capacity
+        additional_reserve = 0.105 * renewable_capacity   # 10% ±5% of renewable capacity
         return base_reserve + additional_reserve
 
+    # Define Reserve Up (Rup) and Reserve Down (Rdn) for Each Time Period
     p["Rup"] = {t: reserve_requirement(t) for t in T}
     p["Rdn"] = {t: reserve_requirement(t) for t in T}
 
-    # Transmission line parameters
-    p["Fmax"] = {l: 250 for l in L}
+    # Define Maximum Power Flow (Fmax) for Each Transmission Line
+    p["Fmax"] = {l: 250 for l in L}  # Example: 250 MW capacity for each line
 
-    # Minimum up and down times
+    # Define Minimum Up Time (UT) for Thermal Generators
     p["UT"] = {
-        g: random_range(9.5, 10.5) if gen_types[g] == 'coal' else  # Coal: 10 ±5% hours
-        random_range(4.75, 5.25)  # For 'ccgt', CCGT: 5 ±5% hours
+        g: random_range(9.5, 10.5) if gen_types[g] == 'coal' else   # Coal: 10 ±5% hours
+        random_range(4.75, 5.25)                                  # CCGT: 5 ±5% hours
         for g in Gtherm
     }
-    p["DT"] = p["UT"].copy()
+    p["DT"] = p["UT"].copy()  # Minimum Down Time is identical to Minimum Up Time
 
-    # Start-up and Shut-down times
+    # Define Start-Up (SU) and Shut-Down (SD) Times for Thermal Generators
     p["SU"] = {
         g: random_range(4.75, 5.25) if gen_types[g] == 'coal' else  # Coal: 5 ±5% hours
-        random_range(0.95, 1.05)  # For 'ccgt', CCGT: 1 ±5% hours
+        random_range(0.95, 1.05)                                  # CCGT: 1 ±5% hours
         for g in Gtherm
     }
-    p["SD"] = p["SU"].copy()
+    p["SD"] = p["SU"].copy()  # Shut-Down times are identical to Start-Up times
 
-    # Location mapping for generators
+    # Define Generator-to-Node Incidence Matrix (Lg)
     p["Lg"] = {}
     for g in G:
         if g in Gsolar:
             sgen_idx = g - len(Gtherm) - len(Ghydro) - 1
-            bus = solar_sgens.iloc[sgen_idx]['bus'] + 1
+            if 0 <= sgen_idx < len(solar_sgens):
+                bus = solar_sgens.iloc[sgen_idx]['bus'] + 1  # 1-based indexing
+            else:
+                raise ValueError(f"Invalid solar generator index: {sgen_idx}")
         elif g in Gwind:
             sgen_idx = g - len(Gtherm) - len(Ghydro) - len(Gsolar) - 1
-            bus = wind_sgens.iloc[sgen_idx]['bus'] + 1
-        elif g in Ghydro or g in Gtherm:
+            if 0 <= sgen_idx < len(wind_sgens):
+                bus = wind_sgens.iloc[sgen_idx]['bus'] + 1  # 1-based indexing
+            else:
+                raise ValueError(f"Invalid wind generator index: {sgen_idx}")
+        elif g in Ghydro + Gtherm:
             gen_idx = g - 1
-            bus = net.gen.iloc[gen_idx]['bus'] + 1
+            if 0 <= gen_idx < len(net.gen):
+                bus = net.gen.iloc[gen_idx]['bus'] + 1  # 1-based indexing
+            else:
+                raise ValueError(f"Invalid thermal/hydro generator index: {gen_idx}")
         elif g in Gbatt:
             storage_idx = g - len(Gtherm) - len(Ghydro) - len(Gsolar) - len(Gwind) - 1
-            bus = battery_storage.iloc[storage_idx]['bus'] + 1
+            if 0 <= storage_idx < len(battery_storage):
+                bus = battery_storage.iloc[storage_idx]['bus'] + 1  # 1-based indexing
+            else:
+                raise ValueError(f"Invalid battery storage index: {storage_idx}")
         else:
             raise ValueError(f"Unknown generator type for index: {g}")
 
+        # Assign generator to its corresponding bus
         for n in N:
             p["Lg"][(g, n)] = 1 if n == bus else 0
 
-    # Incidence matrix for lines
+    # Define Line-to-Node Incidence Matrix (Ll)
     p["Ll"] = {}
     for l in L:
-        from_bus = net.line.at[l - 1, 'from_bus'] + 1
-        to_bus = net.line.at[l - 1, 'to_bus'] + 1
+        from_bus = net.line.at[l - 1, 'from_bus'] + 1  # 1-based indexing
+        to_bus = net.line.at[l - 1, 'to_bus'] + 1      # 1-based indexing
         for n in N:
             if n == from_bus:
                 p["Ll"][(l, n)] = 1
@@ -259,159 +318,216 @@ def parsecase(net, num_solar=0, num_wind=0, num_batt=0, num_hydro=0, num_therm=0
             else:
                 p["Ll"][(l, n)] = 0
 
-    # Location mapping for demands
+    # Define Demand-to-Node Incidence Matrix (Ld)
     p["Ld"] = {}
     for d in D:
-        bus = net.load.at[d - 1, 'bus'] + 1
+        bus = net.load.at[d - 1, 'bus'] + 1  # 1-based indexing
         for n in N:
             p["Ld"][(d, n)] = 1 if n == bus else 0
 
-    p["Dl"] = {d: 1 / num_demands for d in D}
-    p["Dt"] = {None: 1}
+    # Define Load Distribution Factor (Dl)
+    p["Dl"] = {d: 1 / num_demands for d in D} if num_demands > 0 else {}
 
-    p["line_from"] = {l: net.line.at[l - 1, 'from_bus'] + 1 for l in L}
-    p["line_to"] = {l: net.line.at[l - 1, 'to_bus'] + 1 for l in L}
-    p["X"] = {l: net.line.at[l - 1, 'x_ohm_per_km'] * net.line.at[l - 1, 'length_km'] for l in L}
+    # Define Time Step Duration (Dt)
+    p["Dt"] = {None: 1}  # Assuming each time step represents 1 hour
 
-    # Voltage base assumption
+    # Define Transmission Line Parameters
+    p["line_from"] = {l: net.line.at[l - 1, 'from_bus'] + 1 for l in L}  # From bus (1-based indexing)
+    p["line_to"] = {l: net.line.at[l - 1, 'to_bus'] + 1 for l in L}      # To bus (1-based indexing)
+    p["X"] = {l: net.line.at[l - 1, 'x_ohm_per_km'] * net.line.at[l - 1, 'length_km'] for l in L}  # Reactance in Ohms
+
+    # Define Base Power (S_base) and Base Voltage (V_base) for Per-Unit System
     S_base = 100  # MVA
-    V_bases = net.bus['vn_kv'].unique()
-    if len(V_bases) == 1:
-        V_base = V_bases[0]
-    else:
-        raise ValueError("Multiple voltage bases found in the network.")
+    V_base = net.bus['vn_kv'].mean()  # Average voltage base in kV
     Z_base = (V_base ** 2) / S_base  # Ohms
-    # Convert X[l] from Ohms to per unit
+
+    # Convert Reactance from Ohms to Per-Unit
     p["X_pu"] = {l: p["X"][l] / Z_base for l in L}
 
-    # Extract Slack Bus ID
-    if net.ext_grid.empty:
-        raise ValueError("No external grid (slack bus) found in the network.")
-    slack_bus = net.ext_grid.iloc[0]['bus'] + 1
-    p["slack_bus"] = slack_bus
+    # Define Wind and Battery Uncertainty Parameters
+    p["Xw"] = {
+        (t, o): 100 * len(Gwind)
+        for t in T
+        for o in O
+    }
+    p["Xd_uncert"] = {
+        (t, o): 100 * len(Gbatt)
+        for t in T
+        for o in O
+    }
 
-    # Serialize data
+    # Extract Slack Bus ID from the Network
+    slack_ext_grid = net.ext_grid[net.ext_grid.type == 'slack']
+    if slack_ext_grid.empty:
+        raise ValueError("No slack bus found in the network.")
+    elif len(slack_ext_grid) > 1:
+        raise ValueError("Multiple slack buses found in the network.")
+    else:
+        slack_bus = slack_ext_grid.at[slack_ext_grid.index[0], 'bus'] + 1  # 1-based indexing
+        p["slack_bus"] = slack_bus
+
+    # Serialize Parameter Data for the Optimization Model
     data = pickle.dumps({None: p})
     with open("UCdata.p", "wb") as f:
         pickle.dump(data, f)
 
     return data
 
+
 def random_range(min_val, max_val):
     """
-    Returns a random float between min_val and max_val.
+    Generates a random float within a specified range.
+
+    Parameters:
+        min_val (float): Minimum value of the range.
+        max_val (float): Maximum value of the range.
+
+    Returns:
+        float: Randomly generated value within [min_val, max_val].
     """
     return min_val + random.random() * (max_val - min_val)
 
+
 def add_gens_to_case(net, num_solar, num_wind, num_batt, num_hydro, num_thermal):
     """
-    Adds specified number of generators of various types to a pandapower network in a specified order.
+    Adds specified numbers of different generator types to a pandapower network in a predefined order.
 
     Parameters:
-    - net: pandapower network object
-    - num_solar: Number of solar generators to add
-    - num_wind: Number of wind generators to add
-    - num_batt: Number of battery storage units to add
-    - num_hydro: Number of hydro generators to add
-    - num_thermal: Number of thermal generators to add
+        net (pandapower.Network): The pandapower network object to modify.
+        num_solar (int): Number of solar generators to add.
+        num_wind (int): Number of wind generators to add.
+        num_batt (int): Number of battery storage units to add.
+        num_hydro (int): Number of hydro generators to add.
+        num_thermal (int): Number of thermal generators to add.
 
     Returns:
-    - Modified pandapower network object with generators added in specific order.
+        pandapower.Network: The updated network with added generators.
     """
-    # Get list of buses
+    # Retrieve list of existing buses in the network
     buses = net.bus.index.tolist()
+
+    # Add dummy loads to ensure network connectivity and avoid isolated buses
     net = add_dummy_loads(net)
 
-    # Ensure we have a slack bus
+    # Ensure there is at least one slack bus in the network
     if 'type' not in net.ext_grid.columns or 'slack' not in net.ext_grid['type'].values:
         if not net.ext_grid.empty:
+            # If ext_grid exists but lacks type, assign 'slack' to the first entry
             net.ext_grid.loc[net.ext_grid.index[0], 'type'] = 'slack'
         else:
+            # If no ext_grid exists, create one and assign it as 'slack'
             slack_bus = random.choice(buses)
             pp.create_ext_grid(net, slack_bus, vm_pu=1.0, name="Slack")
             net.ext_grid.loc[net.ext_grid.index[-1], 'type'] = 'slack'
 
-    # Assign 'Thermal' type to existing generators without a type
+    # Assign 'Thermal' type to existing generators without a specified type
     if 'type' not in net.gen.columns:
         net.gen['type'] = 'Thermal'
     else:
         net.gen.loc[net.gen['type'].isnull(), 'type'] = 'Thermal'
 
-    # Function to add a generator
+    # Helper function to add a generator of a specified type to the network
     def add_generator(gen_type):
+        """
+        Adds a generator of a specific type to a randomly selected bus in the network.
+
+        Parameters:
+            gen_type (str): Type of generator to add ('Solar', 'Wind', 'Battery', 'Hydro', 'Thermal').
+
+        Raises:
+            ValueError: If an unknown generator type is specified.
+        """
+        # Select a random bus from the list of buses
         bus = random.choice(buses)
         unique_id = f"{gen_type}_{len(net.sgen) + len(net.gen) + len(net.storage)}"
 
         if gen_type == "Solar":
-            pp.create_sgen(net, bus, min_p_mw=0, max_p_mw=30, p_mw=30, q_mvar=0, name=unique_id, type="PV")
+            # Add a Solar PV generator
+            pp.create_sgen(net, bus, min_p_mw=0, max_p_mw=30, p_mw=30, q_mvar=0,
+                          name=unique_id, type="PV")
         elif gen_type == "Wind":
-            pp.create_sgen(net, bus, min_p_mw=0, max_p_mw=50, p_mw=50, q_mvar=0, name=unique_id, type="WP")
+            # Add a Wind Power generator
+            pp.create_sgen(net, bus, min_p_mw=0, max_p_mw=50, p_mw=50, q_mvar=0,
+                          name=unique_id, type="WP")
         elif gen_type == "Battery":
-            pp.create_storage(net, bus, min_e_mwh=0, max_e_mwh=20, min_p_mw=-80, max_p_mw=80, p_mw=0, q_mvar=0,
+            # Add a Battery Storage unit
+            pp.create_storage(net, bus, min_e_mwh=0, max_e_mwh=20,
+                             min_p_mw=-80, max_p_mw=80, p_mw=0, q_mvar=0,
                              name=unique_id, type="BT")
         elif gen_type == "Hydro":
-            gen_idx = pp.create_gen(net, bus, min_p_mw=10, max_p_mw=100, p_mw=50, vm_pu=1.0, name=unique_id)
+            # Add a Hydro generator
+            gen_idx = pp.create_gen(net, bus, min_p_mw=10, max_p_mw=100,
+                                    p_mw=50, vm_pu=1.0, name=unique_id)
             net.gen.at[gen_idx, "type"] = "Hydro"
         elif gen_type == "Thermal":
-            gen_idx = pp.create_gen(net, bus, min_p_mw=20, max_p_mw=200, p_mw=100, vm_pu=1.0, name=unique_id)
+            # Add a Thermal generator
+            gen_idx = pp.create_gen(net, bus, min_p_mw=20, max_p_mw=200,
+                                    p_mw=100, vm_pu=1.0, name=unique_id)
             net.gen.at[gen_idx, "type"] = "Thermal"
+        else:
+            raise ValueError(f"Unknown generator type: {gen_type}")
 
-    # Add Thermal generators
+    # Add Thermal Generators
     for _ in range(num_thermal):
         add_generator("Thermal")
 
-    # Add Hydro generators
+    # Add Hydro Generators
     for _ in range(num_hydro):
         add_generator("Hydro")
 
-    # Add Solar generators
+    # Add Solar Generators
     for _ in range(num_solar):
         add_generator("Solar")
 
-    # Add Wind generators
+    # Add Wind Generators
     for _ in range(num_wind):
         add_generator("Wind")
 
-    # Add Battery generators
+    # Add Battery Storage Units
     for _ in range(num_batt):
         add_generator("Battery")
 
     return net
 
+
 def add_dummy_loads(net, dummy_load_mw=1):
     """
-    Add dummy loads to isolated nodes or nodes without loads in the network.
+    Adds dummy loads to isolated buses or buses without existing loads to ensure network connectivity.
 
     Parameters:
-    net (pandapower.Network): The pandapower network
-    dummy_load_mw (float): The power of the dummy load in MW
+        net (pandapower.Network): The pandapower network object to modify.
+        dummy_load_mw (float): Power of each dummy load in MW (default is 1).
 
     Returns:
-    pandapower.Network: The updated network with dummy loads added
+        pandapower.Network: The updated network with dummy loads added.
     """
-    # Create a graph of the network
+    # Create an undirected graph of the network using NetworkX
     graph = nx.Graph()
     for _, line in net.line.iterrows():
         graph.add_edge(line['from_bus'], line['to_bus'])
 
-    # Find all connected components
+    # Identify all connected components in the network graph
     connected_components = list(nx.connected_components(graph))
 
-    # Find buses with no loads
+    # Identify buses that already have loads
     buses_with_loads = set(net.load['bus'].values)
     all_buses = set(net.bus.index)
     buses_without_loads = all_buses - buses_with_loads
 
-    # Add dummy loads to isolated buses and buses without loads
+    # Initialize counter for dummy loads
     dummy_load_count = 0
+
+    # Add dummy loads to buses without loads or to isolated buses
     for bus in buses_without_loads:
-        # Check if the bus is isolated (in a component by itself)
+        # Check if the bus is isolated (only connected to itself)
         if any(len(component) == 1 and bus in component for component in connected_components):
-            pp.create_load(net, bus=bus, p_mw=dummy_load_mw, name=f"Dummy Load {dummy_load_count}")
+            pp.create_load(net, bus=bus, p_mw=dummy_load_mw,
+                          name=f"Dummy Load {dummy_load_count}")
             dummy_load_count += 1
-        # Or if it's in a larger component but has no load
+        # Add dummy load to buses in larger connected components but without existing loads
         elif bus not in buses_with_loads:
-            pp.create_load(net, bus=bus, p_mw=dummy_load_mw, name=f"Dummy Load {dummy_load_count}")
+            pp.create_load(net, bus=bus, p_mw=dummy_load_mw,
+                          name=f"Dummy Load {dummy_load_count}")
             dummy_load_count += 1
 
     print(f"Added {dummy_load_count} dummy loads to the network.")
