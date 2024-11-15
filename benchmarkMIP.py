@@ -13,13 +13,8 @@ def benchmark_mip(D):
     
 
     def beta_rule(model, i):
-        solver_times_i = [
-            solver_times[solver][i] 
-            for solver in ['gurobi', 'cbc', 'glpk']
-            if i in solver_times[solver]
-        ]
-        min_time = min(solver_times_i) if solver_times_i else float('inf')
-        return 1 + (1.0/20.0) * math.sqrt(min_time)
+        time_elapsed = D['time_elapsed'][i]  
+        return 1 + (1.0/20.0) * math.sqrt(time_elapsed)
 
     model.b = Param(model.I, initialize=beta_rule)
     # model.b = Param(model.I, initialize=1 + 1/20 * math.sqrt(min(model.t))) # min of t wi over w in W
