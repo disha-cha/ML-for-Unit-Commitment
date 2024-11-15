@@ -11,7 +11,19 @@ def benchmark_mip(D):
     
     model.z = Var(within=(0, model.dmax))
     model.b = Param(model.I, initialize=1 + 1/20 * math.sqrt(min(model.t))) # min of t wi over w in W
-    model.obj = Objective(rule=summation(model.b, model.x), sense=maximize)
+
+
+    def beta_rule(model, i):
+        min_time = min(solver_times[w][i] for w in solvers)
+        return 1 + (1.0/20.0) * math.sqrt(min_time)
+        
+    model.beta = Param(model.I, initialize=beta_rule)
+    model.obj = Objective(
+        expr=sum(model.beta[i] * model.x[i] for i in model.I),
+        sense=maximize
+    )
+    # model.obj = Objective(rule=summation(model.b, model.x), sense=maximize)
+    
     def foura(k, l): # for all k, l in C - G
         return sum(model.x[i] for i in model.G) >= (1 - model.e) * model.d[k, l] * model.y[k]
     model.foura = Constraint(model.K, model.L, rule=foura)
