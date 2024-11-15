@@ -64,4 +64,6 @@ This project is released under the MIT License. See the LICENSE file for more de
 Gurobi requires a comercial or academic license if you wish to use it to solve large problems. If you wish to use GLPK in `Choose_your_solver.py` for free to solve Pyomo models, you can do so, but Gurobi is the only solver for MPS models currently supported in this script, so if you intend to use this script to solve large problems from MPS files, you will require a paid Gurobi license, and solving even small problems using Gurobi will require that a free license be downloaded from the web.
 
 ## Contact
-For support or inquiries, contact me at xabackus@mit.edu
+For support or inquiries, contact:
+- [disha31@mit.edu](mailto:disha31@mit.edu)
+- [ivyzheng@mit.edu](mailto:ivyzheng@mit.edu)
