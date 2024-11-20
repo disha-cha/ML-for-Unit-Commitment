@@ -598,7 +598,7 @@ def get_power_DCPF_constraints(model):
         total_gen = sum(model.p[g, t, s] for g in model.G)
         total_flow = sum(model.f[l, t, s, o] for l in model.L)
         total_demand = model.Dd[t]
-        return total_gen - total_flow == total_demand
+        return total_gen == total_demand
 
     # Apply system-wide balance constraints
     model.system_balance = Constraint(model.T, model.S, model.O, rule=system_balance_rule)
@@ -673,18 +673,24 @@ def get_thermal_constraints(model):
         None: Adds the constraints to the model.
     """
     # Minimum Up Time Constraint
-    def min_up_time_rule(model, g, s):
+    def min_up_time_rule(model, g, t, s):
         """Ensure generators remain on for a minimum number of time periods after startup."""
-        min_up = model.UT[g]
-        # Simplified: Ensure that if generator is on at the first time period, it has been on for at least min_up periods
-        return sum(model.y[g, t, s] for t in model.T if t <= min_up) >= model.u[g, 1, s]
+        # If there aren't enough previous periods to enforce the constraint, skip it
+        if t <= model.UT[g]:
+            return Constraint.Skip
+        else:
+            # Sum of start-ups in the past 'UT' periods must be less than or equal to the on status at time 't'
+            return sum(model.y[g, tau, s] for tau in range(t - int(value(model.UT[g])) + 1, t + 1)) <= model.u[g, t, s]
 
     # Minimum Down Time Constraint
-    def min_down_time_rule(model, g, s):
+    def min_down_time_rule(model, g, t, s):
         """Ensure generators remain off for a minimum number of time periods after shutdown."""
-        min_down = model.DT[g]
-        # Simplified: Ensure that if generator is off at the first time period, it remains off for at least min_down periods
-        return sum(model.z[g, t, s] for t in model.T if t <= min_down) >= 1 - model.u[g, 1, s]
+        if t <= model.DT[g]:
+            return Constraint.Skip
+        else:
+            # Sum of shut-downs in the past 'DT' periods must be less than or equal to the off status at time 't'
+            return sum(model.z[g, tau, s] for tau in range(t - int(value(model.DT[g])) + 1, t + 1)) <= 1 - model.u[
+                g, t, s]
 
     # Logical Relationship between on/off status and start-up/shut-down
     def logical_relationship_rule(model, g, t, s):
@@ -726,8 +732,8 @@ def get_thermal_constraints(model):
         return model.y[g, t, s] + model.z[g, t, s] <= 1
 
     # Apply thermal generator constraints to the model
-    model.min_up_time_rule = Constraint(model.Gtherm, model.S, rule=min_up_time_rule)
-    model.min_down_time_rule = Constraint(model.Gtherm, model.S, rule=min_down_time_rule)
+    model.min_up_time_rule = Constraint(model.Gtherm, model.S, model.T, rule=min_up_time_rule)
+    model.min_down_time_rule = Constraint(model.Gtherm, model.S, model.T, rule=min_down_time_rule)
     model.logical_relationship = Constraint(model.Gtherm, model.T, model.S, rule=logical_relationship_rule)
     model.power_output_min = Constraint(model.Gtherm, model.T, model.S, rule=power_output_min_rule)
     model.power_output_max = Constraint(model.Gtherm, model.T, model.S, rule=power_output_max_rule)
