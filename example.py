@@ -31,7 +31,7 @@ num_batt = int(sys.argv[4])     # Number of battery storage units to add
 num_therm = int(sys.argv[5])    # Number of thermal generators to add
 
 # Load the IEEE 30-bus test case network
-net = pandapower.networks.case_ieee30()
+net = pandapower.networks.case30()
 original_therm = len(net.gen)  # Number of existing thermal generators
 
 # Add specified generators to the network
@@ -52,12 +52,19 @@ kwargs = {
     'num_demands': len(net.load)
 }
 
-# Get current date and time for unique model name
-current_time = datetime.now()
-timestamp = current_time.strftime("%Y%m%d_%H%M%S")
+def get_next_output_id():
+    counter_file = 'data/output_counter.txt'
+    if os.path.exists(counter_file):
+        with open(counter_file, 'r') as f:
+            output_id = int(f.read()) + 1
+    else:
+        output_id = 1
+    with open(counter_file, 'w') as f:
+        f.write(str(output_id))
+    return output_id
 
-# Create a model name with timestamp and generator counts
-model_name = f"UCModel_{timestamp}_ns={num_solar}_nw={num_wind}_nh={num_hydro}_nb={num_batt}_nt={num_therm}"
+output_id = get_next_output_id()
+model_name = f"output_{output_id}"
 
 # Parse the network case and generate data for the optimization model
 db = parsecase(net, **kwargs)
@@ -150,4 +157,3 @@ plt.title('Unit Commitment Results')
 plt.legend(title='Generator Type')
 plt.savefig("data/" + model_name + "_plot.png")
 plt.show()
-
