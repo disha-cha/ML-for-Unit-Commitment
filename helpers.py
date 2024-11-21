@@ -35,27 +35,27 @@ def parsecase(net, num_solar=0, num_wind=0, num_batt=0, num_hydro=0, num_therm=0
     gen_offset = 1
 
     # Extract and index Thermal Generators
-    thermal_gens = net.gen[net.gen.type == "Thermal"]
+    thermal_gens = net.gen[net.gen.type == "Thermal"].reset_index(drop=True)
     Gtherm = list(range(gen_offset, gen_offset + len(thermal_gens)))
     gen_offset += len(Gtherm)
 
     # Extract and index Hydro Generators
-    hydro_gens = net.gen[net.gen.type == "Hydro"]
+    hydro_gens = net.gen[net.gen.type == "Hydro"].reset_index(drop=True)
     Ghydro = list(range(gen_offset, gen_offset + len(hydro_gens)))
     gen_offset += len(Ghydro)
 
     # Extract and index Solar Generators (PV)
-    solar_sgens = net.sgen[net.sgen.type == "PV"]
+    solar_sgens = net.sgen[net.sgen.type == "PV"].reset_index(drop=True)
     Gsolar = list(range(gen_offset, gen_offset + len(solar_sgens)))
     gen_offset += len(Gsolar)
 
     # Extract and index Wind Generators (WP)
-    wind_sgens = net.sgen[net.sgen.type == "WP"]
+    wind_sgens = net.sgen[net.sgen.type == "WP"].reset_index(drop=True)
     Gwind = list(range(gen_offset, gen_offset + len(wind_sgens)))
     gen_offset += len(Gwind)
 
     # Extract and index Battery Storage Units (BT)
-    battery_storage = net.storage[net.storage.type == "BT"]
+    battery_storage = net.storage[net.storage.type == "BT"].reset_index(drop=True)
     Gbatt = list(range(gen_offset, gen_offset + len(battery_storage)))
 
     # Combine Renewable Generators (Solar + Wind)
@@ -75,17 +75,6 @@ def parsecase(net, num_solar=0, num_wind=0, num_batt=0, num_hydro=0, num_therm=0
     # Assign Generator Types to Thermal Generators
     therm_types = ['coal', 'ccgt']                      # Possible types for thermal generators
     gen_types = {g: random.choice(therm_types) for g in Gtherm}
-
-    # Define Fixed Capital Expenditure (CapEx) for Each Generator
-    p["CapEx"] = {
-        g: random_range(902.5, 997.5) if g in Gsolar else              # Solar PV: $950 ±5% per kW
-        random_range(1425, 1575) if g in Gwind else                    # Onshore Wind: $1500 ±5% per kW
-        random_range(3800, 4200) if g in Ghydro else                   # Hydro: $4000 ±5% per kW
-        random_range(1235, 1365) if g in Gbatt else                    # Battery Storage: $1300 ±5% per kW
-        random_range(3800, 4200) if gen_types[g] == 'coal' else         # Coal: $4000 ±5% per kW
-        random_range(950, 1050)                                         # CCGT: $1000 ±5% per kW
-        for g in G
-    }
 
     # Define Variable Operational Expenditure (OpEx) for Each Generator
     p["OpEx"] = {
@@ -123,25 +112,26 @@ def parsecase(net, num_solar=0, num_wind=0, num_batt=0, num_hydro=0, num_therm=0
     p["Pmax"] = {}
     p["Pmin"] = {}
     for g in G:
-        if g in Gsolar or g in Gwind:
-            # Indexing for sgen (solar or wind)
-            sgen_idx = g - len(Gtherm) - len(Ghydro)
-            if g in Gsolar:
-                p["Pmax"][g] = solar_sgens.at[sgen_idx - 1, 'max_p_mw']
-                p["Pmin"][g] = solar_sgens.at[sgen_idx - 1, 'min_p_mw']
-            else:
-                p["Pmax"][g] = wind_sgens.at[sgen_idx - 1, 'max_p_mw']
-                p["Pmin"][g] = wind_sgens.at[sgen_idx - 1, 'min_p_mw']
+        if g in Gsolar:
+            sgen_idx = g - Gsolar[0]
+            p["Pmax"][g] = solar_sgens.iloc[sgen_idx]['max_p_mw']
+            p["Pmin"][g] = solar_sgens.iloc[sgen_idx]['min_p_mw']
+        elif g in Gwind:
+            sgen_idx = g - Gwind[0]
+            p["Pmax"][g] = wind_sgens.iloc[sgen_idx]['max_p_mw']
+            p["Pmin"][g] = wind_sgens.iloc[sgen_idx]['min_p_mw']
         elif g in Gbatt:
-            # Indexing for battery storage
-            storage_idx = g - len(Gtherm) - len(Ghydro) - len(Gsolar) - len(Gwind) - 1
-            p["Pmax"][g] = battery_storage.at[storage_idx, 'max_p_mw']
-            p["Pmin"][g] = battery_storage.at[storage_idx, 'min_p_mw']
-        elif g in Ghydro or g in Gtherm:
-            # Indexing for hydro or thermal generators
-            gen_idx = g - 1  # 1-based indexing
-            p["Pmax"][g] = net.gen.at[gen_idx, 'max_p_mw']
-            p["Pmin"][g] = net.gen.at[gen_idx, 'min_p_mw']
+            storage_idx = g - Gbatt[0]
+            p["Pmax"][g] = battery_storage.iloc[storage_idx]['max_p_mw']
+            p["Pmin"][g] = battery_storage.iloc[storage_idx]['min_p_mw']
+        elif g in Ghydro:
+            gen_idx = g - Ghydro[0]
+            p["Pmax"][g] = hydro_gens.iloc[gen_idx]['max_p_mw']
+            p["Pmin"][g] = hydro_gens.iloc[gen_idx]['min_p_mw']
+        elif g in Gtherm:
+            gen_idx = g - Gtherm[0]
+            p["Pmax"][g] = thermal_gens.iloc[gen_idx]['max_p_mw']
+            p["Pmin"][g] = thermal_gens.iloc[gen_idx]['min_p_mw']
 
     # Define Ramp-Up (RU) and Ramp-Down (RD) Rates for Each Generator
     p["RU"] = {
@@ -212,25 +202,71 @@ def parsecase(net, num_solar=0, num_wind=0, num_batt=0, num_hydro=0, num_therm=0
     # Calculate Total Load in the Network
     total_load = net.load['p_mw'].sum()
 
-    def demand_curve(t):
+
+    def demand_curve(t, total_load):
         """
-        Generates a demand curve with peak and off-peak factors and sinusoidal variation.
+        Generates a realistic electricity demand curve for a 24-hour period with hourly timesteps.
 
         Parameters:
-            t (int): Time period.
+            t (int): Hour of the day (0-23)
+            total_load (float): Total system load capacity
 
         Returns:
-            float: Calculated demand for time period t.
+            float: Calculated demand for hour t
         """
-        base_load = total_load
-        peak_factor = 1.3
-        off_peak_factor = 0.7
-        time_of_day = (t - 1) % 24
-        variation = np.sin(np.pi * time_of_day / 12)
-        return base_load * (peak_factor if 9 <= time_of_day <= 20 else off_peak_factor) * (1 + 0.1 * variation)
+        # Base load varies by system size
+        if total_load > 5000:  # Large systems (like 118 bus)
+            base_load_factor = 0.4  # 40% of total load
+            volatility = 0.3  # Less volatile
+        elif total_load > 1000:  # Medium systems (like 30 bus)
+            base_load_factor = 0.35  # 35% of total load
+            volatility = 0.4  # Medium volatility
+        else:  # Small systems (like 6 bus)
+            base_load_factor = 0.3  # 30% of total load
+            volatility = 0.5  # More volatile
+
+        base_load = total_load * base_load_factor
+
+        # Scale peak amplitudes based on system size
+        peak_scale = volatility
+
+        # Morning peak parameters (around 9 AM)
+        morning_peak = gaussian_peak(t, mu=9, sigma=1.5, amplitude=0.4 * peak_scale)
+
+        # Evening peak parameters (around 7 PM = 19h)
+        evening_peak = gaussian_peak(t, mu=19, sigma=2.0, amplitude=0.5 * peak_scale)
+
+        # Midday plateau (between peaks)
+        midday = gaussian_peak(t, mu=14, sigma=4.0, amplitude=0.3 * peak_scale)
+
+        # Night valley (early morning hours)
+        night_valley = gaussian_valley(t, mu=4, sigma=2.5, amplitude=0.3 * peak_scale)
+
+        # Combine all components
+        daily_pattern = 1.0 + morning_peak + evening_peak + midday - night_valley
+
+        # Add small random variations (scaled by system size)
+        noise_scale = 0.02 if total_load <= 1000 else 0.01  # Smaller systems have more noise
+        noise = noise_scale * np.random.normal()
+
+        final_demand = base_load * daily_pattern * (1 + noise)
+
+        # Dynamic bounds based on system size
+        min_load = base_load * (0.5 if total_load > 5000 else 0.4)  # Larger systems have higher minimum
+        max_load = base_load * (1.8 if total_load > 5000 else 2.0)  # Larger systems have lower peaks
+
+        return max(min_load, min(final_demand, max_load))
+
+    def gaussian_peak(x, mu, sigma, amplitude):
+        """Helper function to create a Gaussian peak."""
+        return amplitude * np.exp(-0.5 * ((x - mu) / sigma) ** 2)
+
+    def gaussian_valley(x, mu, sigma, amplitude):
+        """Helper function to create a Gaussian valley."""
+        return amplitude * (1 - np.exp(-0.5 * ((x - mu) / sigma) ** 2))
 
     # Define Demand at Each Time Period
-    p["Dd"] = {t: demand_curve(t) for t in T}
+    p["Dd"] = {t: demand_curve(t, total_load) for t in T}
 
     # Define Reserve Requirements based on Demand and Renewable Capacity
     def reserve_requirement(t):
@@ -275,29 +311,20 @@ def parsecase(net, num_solar=0, num_wind=0, num_batt=0, num_hydro=0, num_therm=0
     p["Lg"] = {}
     for g in G:
         if g in Gsolar:
-            sgen_idx = g - len(Gtherm) - len(Ghydro) - 1
-            if 0 <= sgen_idx < len(solar_sgens):
-                bus = solar_sgens.iloc[sgen_idx]['bus'] + 1  # 1-based indexing
-            else:
-                raise ValueError(f"Invalid solar generator index: {sgen_idx}")
+            sgen_idx = g - Gsolar[0]
+            bus = solar_sgens.iloc[sgen_idx]['bus'] + 1  # 1-based indexing
         elif g in Gwind:
-            sgen_idx = g - len(Gtherm) - len(Ghydro) - len(Gsolar) - 1
-            if 0 <= sgen_idx < len(wind_sgens):
-                bus = wind_sgens.iloc[sgen_idx]['bus'] + 1  # 1-based indexing
-            else:
-                raise ValueError(f"Invalid wind generator index: {sgen_idx}")
-        elif g in Ghydro + Gtherm:
-            gen_idx = g - 1
-            if 0 <= gen_idx < len(net.gen):
-                bus = net.gen.iloc[gen_idx]['bus'] + 1  # 1-based indexing
-            else:
-                raise ValueError(f"Invalid thermal/hydro generator index: {gen_idx}")
+            sgen_idx = g - Gwind[0]
+            bus = wind_sgens.iloc[sgen_idx]['bus'] + 1  # 1-based indexing
         elif g in Gbatt:
-            storage_idx = g - len(Gtherm) - len(Ghydro) - len(Gsolar) - len(Gwind) - 1
-            if 0 <= storage_idx < len(battery_storage):
-                bus = battery_storage.iloc[storage_idx]['bus'] + 1  # 1-based indexing
-            else:
-                raise ValueError(f"Invalid battery storage index: {storage_idx}")
+            storage_idx = g - Gbatt[0]
+            bus = battery_storage.iloc[storage_idx]['bus'] + 1  # 1-based indexing
+        elif g in Ghydro:
+            gen_idx = g - Ghydro[0]
+            bus = hydro_gens.iloc[gen_idx]['bus'] + 1  # 1-based indexing
+        elif g in Gtherm:
+            gen_idx = g - Gtherm[0]
+            bus = thermal_gens.iloc[gen_idx]['bus'] + 1  # 1-based indexing
         else:
             raise ValueError(f"Unknown generator type for index: {g}")
 
