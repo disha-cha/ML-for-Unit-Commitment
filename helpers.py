@@ -332,7 +332,7 @@ def parsecase(net, num_solar=0, num_wind=0, num_batt=0, num_hydro=0, num_therm=0
         for n in N:
             p["Lg"][(g, n)] = 1 if n == bus else 0
 
-    # Define Line-to-Node Incidence Matrix (Ll)
+    # Define Line-to-Node Incidence Matrix (Ll) (update indexing)
     p["Ll"] = {}
     for l in L:
         from_bus = net.line.at[l - 1, 'from_bus'] + 1  # 1-based indexing
