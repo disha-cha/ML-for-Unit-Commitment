@@ -6,27 +6,28 @@ import numpy as np
 np.random.seed(42)
 
 # Define the number of instances
-num_instances = 1000
+num_instances = 50
 
 # Initialize a list to store configurations
 configs = []
 
 # Define bus systems and their instance allocations
 bus_systems = [
-    ('case4gs', 20),
-    ('case5', 20),
-    ('case6ww', 20),
-    ('case9', 30),
-    ('case14', 50),
-    ('case24_ieee_rts', 60),
-    ('case30', 70),
-    ('case33bw', 70),
-    ('case39', 90),
-    ('case57', 100),
-    ('case118', 130),
-    ('case145', 130),
-    ('illinois200', 130),
-    ('case300', 130),
+    # ('case4gs', 20),
+    # ('case5', 20),
+    # ('case6ww', 20),
+    # ('case9', 30),
+    # ('case14', 50),
+    # ('case24_ieee_rts', 60),
+    # ('case30', 70),
+    # ('case33bw', 70),
+    # ('case39', 90),
+    # ('case57', 100),
+    # ('case118', 130),
+    # ('case145', 130),
+    # ('illinois200', 130),
+    # ('case300', 130),
+    ('case300', 50),
 ]
 
 # Starting instance ID
@@ -129,7 +130,7 @@ for bus_system, count in bus_systems:
             'Num Solar': np.random.randint(*solar_range),
             'Num Wind': np.random.randint(*wind_range),
             'Num Battery': np.random.randint(*battery_range),
-            'Random Seed': instance_id + 1000
+            'Random Seed': instance_id + 2050
         })
         instance_id += 1
 
