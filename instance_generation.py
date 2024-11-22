@@ -17,44 +17,109 @@ bus_systems = [
     ('case5', 20),
     ('case6ww', 20),
     ('case9', 30),
-    ('case14', 40),
-    ('case24_ieee_rts', 50),
-    ('case30', 60),
-    ('case33bw', 60),
-    ('case39', 80),
-    ('case57', 90),
-    ('case89pegase', 100),
-    ('case118', 120),
-    ('case145', 120),
-    ('illinois200', 120),
-    ('case300', 120),
+    ('case14', 50),
+    ('case24_ieee_rts', 60),
+    ('case30', 70),
+    ('case33bw', 70),
+    ('case39', 90),
+    ('case57', 100),
+    ('case118', 130),
+    ('case145', 130),
+    ('illinois200', 130),
+    ('case300', 130),
 ]
 
 # Starting instance ID
-instance_id = 1001
+instance_id = 1
 
 # Generate configurations for each bus system
 for bus_system, count in bus_systems:
     for _ in range(count):
-        # Define generator count ranges based on bus system size
-        if bus_system in ['case4gs', 'case5', 'case6ww', 'case9', 'case14']:
-            thermal_range = (1, 4)
+        # Define generator count ranges based on specific bus system
+        if bus_system == 'case4gs':
+            thermal_range = (2, 3)
+            hydro_range = (0, 1)
+            solar_range = (0, 2)
+            wind_range = (0, 2)
+            battery_range = (0, 1)
+        elif bus_system == 'case5':
+            thermal_range = (2, 3)
+            hydro_range = (0, 1)
+            solar_range = (0, 2)
+            wind_range = (0, 2)
+            battery_range = (0, 1)
+        elif bus_system == 'case6ww':
+            thermal_range = (2, 3)
+            hydro_range = (0, 1)
+            solar_range = (0, 2)
+            wind_range = (0, 2)
+            battery_range = (0, 1)
+        elif bus_system == 'case9':
+            thermal_range = (3, 4)
+            hydro_range = (0, 1)
+            solar_range = (0, 2)
+            wind_range = (0, 2)
+            battery_range = (0, 1)
+        elif bus_system == 'case14':
+            thermal_range = (5, 6)
             hydro_range = (0, 2)
-            solar_range = (1, 3)
-            wind_range = (1, 3)
-            battery_range = (0, 2)
-        elif bus_system in ['case24_ieee_rts', 'case30', 'case33bw', 'case39', 'case57']:
-            thermal_range = (4, 10)
-            hydro_range = (2, 5)
-            solar_range = (3, 7)
-            wind_range = (3, 7)
-            battery_range = (2, 5)
-        else:  # Larger systems
-            thermal_range = (10, 30)
-            hydro_range = (5, 15)
-            solar_range = (8, 20)
-            wind_range = (8, 20)
-            battery_range = (5, 15)
+            solar_range = (0, 2)
+            wind_range = (0, 2)
+            battery_range = (0, 1)
+        elif bus_system == 'case24_ieee_rts':
+            thermal_range = (8, 10)
+            hydro_range = (2, 3)
+            solar_range = (2, 8)
+            wind_range = (2, 6)
+            battery_range = (1, 4)
+        elif bus_system == 'case30':
+            thermal_range = (6, 8)
+            hydro_range = (1, 2)
+            solar_range = (2, 8)
+            wind_range = (2, 6)
+            battery_range = (1, 4)
+        elif bus_system == 'case33bw':
+            thermal_range = (6, 8)
+            hydro_range = (1, 2)
+            solar_range = (2, 8)
+            wind_range = (2, 6)
+            battery_range = (1, 4)
+        elif bus_system == 'case39':
+            thermal_range = (10, 12)
+            hydro_range = (2, 3)
+            solar_range = (2, 8)
+            wind_range = (2, 6)
+            battery_range = (1, 4)
+        elif bus_system == 'case57':
+            thermal_range = (12, 15)
+            hydro_range = (2, 4)
+            solar_range = (2, 8)
+            wind_range = (2, 6)
+            battery_range = (1, 4)
+        elif bus_system == 'case118':
+            thermal_range = (25, 30)
+            hydro_range = (4, 6)
+            solar_range = (5, 15)
+            wind_range = (4, 12)
+            battery_range = (3, 8)
+        elif bus_system == 'case145':
+            thermal_range = (30, 35)
+            hydro_range = (5, 7)
+            solar_range = (5, 15)
+            wind_range = (4, 12)
+            battery_range = (3, 8)
+        elif bus_system == 'illinois200':
+            thermal_range = (40, 45)
+            hydro_range = (6, 8)
+            solar_range = (5, 15)
+            wind_range = (4, 12)
+            battery_range = (3, 8)
+        elif bus_system == 'case300':
+            thermal_range = (50, 60)
+            hydro_range = (8, 10)
+            solar_range = (5, 15)
+            wind_range = (4, 12)
+            battery_range = (3, 8)
 
         configs.append({
             'Instance ID': instance_id,
