@@ -56,30 +56,36 @@ def get_feature_vector(model, p):
 
     # objective coefficients
     cscale = m.getAttr("MaxObjCoeff")
-    cnorm = c / cscale
-    cmin = m.getAttr("MinObjCoeff")/cscale # or 0? NEED TO NORMALIZE
-    cmax = 1
-    cmean = np.mean(cnorm) # mean of c
-    cmedian = np.median(cnorm) # median of c
-    cstd = np.std(cnorm) # sd of c
-    cdynamism = cmax / cmin # cmin not zero here
-    v[12] = cmin
-    v[13] = cmax
-    v[14] = cmean
-    v[15] = cmedian
-    v[16] = cstd
+    # cnorm = c / cscale
+    # cmin = m.getAttr("MinObjCoeff")/cscale
+    # cmax = 1
+    # cmean = np.mean(cnorm) # mean of c
+    # cmedian = np.median(cnorm) # median of c
+    # cstd = np.std(cnorm) # sd of c
+    cstats = get_vector_statistics(c, lambda x: x / cscale)
+    idx = 12
+    for i in range(len(cstats)):
+        v[idx + i] = cstats[i]
+    cdynamism = cstats[1] / cstats[0] # cmin not zero here
+    # v[12] = cmin
+    # v[13] = cmax
+    # v[14] = cmean
+    # v[15] = cmedian
+    # v[16] = cstd
     v[17] = cdynamism
 
     # variable bounds
 
-    ub = None
-    lb = None
+    ub = m.getAttr("UB")
+    lb = m.getAttr("LB")
 
-    ustats = get_vector_statistics(ub)
-    ulstats = get_vector_statistics(ub - lb)
-
-
-
+    ustats = get_vector_statistics(ub, lambda x: siglog(x))
+    ulstats = get_vector_statistics(ub - lb, lambda x: siglog(x))
+    idx = 18
+    for i in range(len(ustats)):
+        v[idx + i] = ustats[i]
+    for i in range(len(ulstats)):
+        v[idx + i] = ulstats[i]
 
 
 
@@ -92,12 +98,12 @@ def get_feature_vector(model, p):
 
 
 
-def get_vector_statistics(v):
-    vmin = np.min(v)
-    vmax = np.max(v)
-    vmean = np.mean(v) # mean of c
-    vmedian = np.median(v) # median of c
-    vstd = np.std(v) # sd of c
+def get_vector_statistics(v, f):
+    vmin = f(np.min(v))
+    vmax = f(np.max(v))
+    vmean = f(np.mean(v)) # mean of c
+    vmedian = f(np.median(v)) # median of c
+    vstd = f(np.std(v)) # sd of c
     return np.array([vmin, vmax, vmean, vmedian, vstd])
 
 import math

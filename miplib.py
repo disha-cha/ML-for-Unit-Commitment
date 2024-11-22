@@ -16,4 +16,4 @@ for model_group in model_groups:
             continue
     preselect = diversity_preselect(model_group)
 
-benchmark = benchmark_mip(preselect)
+benchmark = benchmark_mip(preselect) # output file names?
