@@ -20,18 +20,44 @@ if not os.path.exists('data'):
     os.makedirs('data')
 
 # Read command-line arguments for the number of each generator type
-if len(sys.argv) != 6:
-    print("Usage: python example.py num_solar num_wind num_hydro num_batt num_therm")
+if len(sys.argv) != 7:
+    print("Usage: python example.py bus_sys num_solar num_wind num_hydro num_batt num_therm")
     sys.exit(1)
 
-num_solar = int(sys.argv[1])    # Number of solar generators to add
-num_wind = int(sys.argv[2])     # Number of wind generators to add
-num_hydro = int(sys.argv[3])    # Number of hydro generators to add
-num_batt = int(sys.argv[4])     # Number of battery storage units to add
-num_therm = int(sys.argv[5])    # Number of thermal generators to add
+num_solar = int(sys.argv[2])    # Number of solar generators to add
+num_wind = int(sys.argv[3])     # Number of wind generators to add
+num_hydro = int(sys.argv[4])    # Number of hydro generators to add
+num_batt = int(sys.argv[5])     # Number of battery storage units to add
+num_therm = int(sys.argv[6])    # Number of thermal generators to add
 
 # Load the IEEE 30-bus test case network
-net = pandapower.networks.case30()
+bus_system = sys.argv[1]
+
+def load_bus_system(bus_system_name):
+    bus_systems = {
+        'case4gs': pandapower.networks.case4gs,
+        'case5': pandapower.networks.case5,
+        'case6ww': pandapower.networks.case6ww,
+        'case9': pandapower.networks.case9,
+        'case14': pandapower.networks.case14,
+        'case24_ieee_rts': pandapower.networks.case24_ieee_rts,
+        'case30': pandapower.networks.case30,
+        'case33bw': pandapower.networks.case33bw,
+        'case39': pandapower.networks.case39,
+        'case57': pandapower.networks.case57,
+        'case118': pandapower.networks.case118,
+        'case145': pandapower.networks.case145,
+        'illinois200': pandapower.networks.case_illinois200,
+        'case300': pandapower.networks.case300,
+    }
+
+    if bus_system_name.lower() in bus_systems:
+        net = bus_systems[bus_system_name.lower()]()
+    else:
+        raise ValueError(f"Bus system '{bus_system_name}' not recognized.")
+    return net
+
+net = load_bus_system(bus_system)
 original_therm = len(net.gen)  # Number of existing thermal generators
 
 # Add specified generators to the network
@@ -52,19 +78,32 @@ kwargs = {
     'num_demands': len(net.load)
 }
 
+# disha use this:
+# def get_next_output_id():
+#     counter_file = 'data/output_counter.txt'
+#     if os.path.exists(counter_file):
+#         with open(counter_file, 'r') as f:
+#             output_id = int(f.read()) + 1
+#     else:
+#         output_id = 1
+#     with open(counter_file, 'w') as f:
+#         f.write(str(output_id))
+#     return output_id
+
+# ivy use this:
 def get_next_output_id():
     counter_file = 'data/output_counter.txt'
     if os.path.exists(counter_file):
         with open(counter_file, 'r') as f:
             output_id = int(f.read()) + 1
     else:
-        output_id = 1
+        output_id = 1001  # Start at 1001 instead of 1
     with open(counter_file, 'w') as f:
         f.write(str(output_id))
     return output_id
 
 output_id = get_next_output_id()
-model_name = f"output_{output_id}"
+model_name = f"output_{output_id}_{bus_system}"
 
 # Parse the network case and generate data for the optimization model
 db = parsecase(net, **kwargs)
@@ -157,4 +196,3 @@ plt.ylabel('Power Output (MW)')
 plt.title('Unit Commitment Results')
 plt.legend(title='Generator Type')
 plt.savefig("data/" + model_name + "_plot.png")
-plt.show()
