@@ -49,6 +49,12 @@ def load_bus_system(bus_system_name):
         'case145': pandapower.networks.case145,
         'illinois200': pandapower.networks.case_illinois200,
         'case300': pandapower.networks.case300,
+        'case1354pegase': pandapower.networks.case1354pegase,
+        'case1888rte': pandapower.networks.case1888rte,
+        'case2848rte': pandapower.networks.case2848rte,
+        'case2869pegase': pandapower.networks.case2869pegase,
+        'case3120sp': pandapower.networks.case3120sp,
+        'case6470rte': pandapower.networks.case6470rte,
     }
 
     if bus_system_name.lower() in bus_systems:
@@ -97,7 +103,7 @@ def get_next_output_id():
         with open(counter_file, 'r') as f:
             output_id = int(f.read()) + 1
     else:
-        output_id = 1001  # Start at 1001 instead of 1
+        output_id = 2101  # Start at 1001 instead of 1
     with open(counter_file, 'w') as f:
         f.write(str(output_id))
     return output_id

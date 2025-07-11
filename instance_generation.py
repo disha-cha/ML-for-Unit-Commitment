@@ -27,7 +27,12 @@ bus_systems = [
     # ('case145', 130),
     # ('illinois200', 130),
     # ('case300', 130),
-    ('case300', 50),
+    ('case1354pegase', 50), # 50
+    # ('case1888rte', 1),
+    # ('case2848rte', 1),
+    # ('case2869pegase', 1),
+    # ('case3120sp', 1),
+    # ('case6470rte', 1),
 ]
 
 # Starting instance ID
@@ -121,6 +126,43 @@ for bus_system, count in bus_systems:
             solar_range = (5, 15)
             wind_range = (4, 12)
             battery_range = (3, 8)
+        elif bus_system == 'case1354pegase':
+            thermal_range = (220, 240)
+            hydro_range = (110, 120)
+            solar_range = (90, 100)
+            wind_range = (90, 100)
+            battery_range = (70, 80)
+        elif bus_system == 'case1888rte':
+            thermal_range = (310, 330)
+            hydro_range = (155, 165)
+            solar_range = (125, 135)
+            wind_range = (125, 135)
+            battery_range = (95, 105)
+        elif bus_system == 'case2848rte':
+            thermal_range = (470, 490)
+            hydro_range = (235, 245)
+            solar_range = (190, 200)
+            wind_range = (190, 200)
+            battery_range = (140, 150)
+        elif bus_system == 'case2869pegase':
+            thermal_range = (475, 495)
+            hydro_range = (235, 245)
+            solar_range = (190, 200)
+            wind_range = (190, 200)
+            battery_range = (140, 150)
+        elif bus_system == 'case3120sp':
+            thermal_range = (520, 540)
+            hydro_range = (260, 270)
+            solar_range = (210, 220)
+            wind_range = (210, 220)
+            battery_range = (155, 165)
+        elif bus_system == 'case6470rte':
+            thermal_range = (1075, 1095)
+            hydro_range = (535, 545)
+            solar_range = (430, 440)
+            wind_range = (430, 440)
+            battery_range = (320, 330)
+
 
         configs.append({
             'Instance ID': instance_id,
@@ -130,7 +172,7 @@ for bus_system, count in bus_systems:
             'Num Solar': np.random.randint(*solar_range),
             'Num Wind': np.random.randint(*wind_range),
             'Num Battery': np.random.randint(*battery_range),
-            'Random Seed': instance_id + 2050
+            'Random Seed': instance_id + 2100
         })
         instance_id += 1
 
