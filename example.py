@@ -4,9 +4,9 @@ import sys
 """Example code to generate and solve a Unit Commitment (UC) MILP model."""
 
 import pyomo.environ as pyo
-from helpers import parsecase, add_gens_to_case
+from model.helpers import parsecase, add_gens_to_case
 import pickle
-import main as ucml
+import model.main as ucml
 import pandapower
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -15,9 +15,12 @@ import json
 import os
 from datetime import datetime  # For timestamping model names
 
-# Ensure the 'data' directory exists
-if not os.path.exists('data'):
-    os.makedirs('data')
+# Determine output directory
+output_dir = os.environ.get('OUTPUT_DIR', 'data')
+
+# Ensure the output directory exists
+if not os.path.exists(output_dir):
+    os.makedirs(output_dir)
 
 # Read command-line arguments for the number of each generator type
 if len(sys.argv) != 7:
@@ -97,18 +100,29 @@ kwargs = {
 #     return output_id
 
 # ivy use this:
-def get_next_output_id():
-    counter_file = 'data/output_counter.txt'
+# def get_next_output_id():
+#     counter_file = 'data/output_counter.txt'
+#     if os.path.exists(counter_file):
+#         with open(counter_file, 'r') as f:
+#             output_id = int(f.read()) + 1
+#     else:
+#         output_id = 2101  # Start at 1001 instead of 1
+#     with open(counter_file, 'w') as f:
+#         f.write(str(output_id))
+#     return output_id
+
+def get_next_output_id(start_id):
+    counter_file = os.path.join(output_dir, 'output_counter.txt')
     if os.path.exists(counter_file):
         with open(counter_file, 'r') as f:
             output_id = int(f.read()) + 1
     else:
-        output_id = 2101  # Start at 1001 instead of 1
+        output_id = start_id
     with open(counter_file, 'w') as f:
         f.write(str(output_id))
     return output_id
 
-output_id = get_next_output_id()
+output_id = get_next_output_id(start_id=10000)
 model_name = f"output_{output_id}_{bus_system}"
 
 # Parse the network case and generate data for the optimization model
@@ -134,7 +148,7 @@ model = ucml.opt_model_generator(**opt_model_kwargs)
 instance = model.create_instance(data=p_data)
 
 # Save the model as an MPS file for record-keeping or debugging
-instance.write("data/" + model_name + ".mps")
+instance.write(os.path.join(output_dir, model_name + ".mps"))
 
 # Solve the model using Gurobi solver
 solver = pyo.SolverFactory('gurobi')
@@ -152,7 +166,7 @@ if result.solver.status == SolverStatus.ok and result.solver.termination_conditi
         primal_bound = pyo.value(instance.obj)
         dual_bound = None
     # Save results to JSON file
-    with open("data/" + model_name + ".json", "w") as out:
+    with open(os.path.join(output_dir, model_name + ".json"), "w") as out:
         out.write(json.dumps({"dual_bound": dual_bound, "primal_bound": primal_bound}))
     print("Optimal value:", pyo.value(instance.obj))
 else:
@@ -191,7 +205,7 @@ df = pd.DataFrame({
 })
 
 # Save the generation data to a CSV file
-df.to_csv("data/" + model_name + "_results.csv", index=False)
+df.to_csv(os.path.join(output_dir, model_name + "_results.csv"), index=False)
 
 # Plot the generation results
 ax = df[['thermal', 'solar', 'wind', 'hydro', 'battery_discharge']].plot.area(stacked=True, figsize=(12, 6))
@@ -201,4 +215,4 @@ plt.xlabel('Time Period')
 plt.ylabel('Power Output (MW)')
 plt.title('Unit Commitment Results')
 plt.legend(title='Generator Type')
-plt.savefig("data/" + model_name + "_plot.png")
+plt.savefig(os.path.join(output_dir, model_name + "_plot.png"))
